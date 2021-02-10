@@ -82,11 +82,12 @@ public class CalculationService {
 
         LocalDate workDate = earliestStartDate;
         for (int i = 1; i <= workDays; i++) {
+            LocalDate localDate = workDate;
             List<ConsolidatedData> startDateToCheck = consolidatedData.stream()
-                    .filter(data -> data.getStartDate().equals(workDate))
+                    .filter(data -> data.getStartDate().equals(localDate))
                     .collect(Collectors.toList());
             List<ConsolidatedData> endDateToCheck = consolidatedData.stream()
-                    .filter(data -> data.getEndDate().equals(workDate))
+                    .filter(data -> data.getEndDate().equals(localDate))
                     .collect(Collectors.toList());
             for (ConsolidatedData data : startDateToCheck) {
                 if (data.getStartDate().equals(workDate)) {
@@ -106,12 +107,25 @@ public class CalculationService {
                             availableEquipment.remove(selectedTrailer);
                             availableVehicles.remove(capabilities.getVehicle());
                         }
+                        data.setWorkStatus(WorkStatus.IN_PROGRESS);
                         data.setReservedEquipment(new ArrayList<>(selectedEquipment.entrySet()));
                     } else {
                         if (availableEquipment.stream().anyMatch(e -> e.getWorkTypes().contains(data.getWorkType()))) {
                             List<WorkCapabilities> workCapabilities = neededEquipment(availableEquipment,
                                     availableVehicles, DONT_NEED_TO_CHECK_PRODUCTION, data.getWorkType(),
                                     GET_ALL_EQUIPMENT);
+                            List<Map.Entry<Equipment, String>> reservedEquipment = new ArrayList<>();
+                            for (WorkCapabilities workCapability : workCapabilities) {
+                                Equipment selectedTrailer = availableEquipment.stream()
+                                        .filter(eq -> eq.getCapabilities().contains(workCapability))
+                                        .collect(Collectors.toList()).get(0);
+                                reservedEquipment.add(Map.of(selectedTrailer,
+                                        workCapability.getVehicle()).entrySet().stream().findFirst().get());
+                                availableEquipment.remove(selectedTrailer);
+                                availableVehicles.remove(workCapability.getVehicle());
+                            }
+                            data.setReservedEquipment(reservedEquipment);
+                            data.setWorkStatus(WorkStatus.IN_PROGRESS);
                             double remainProduction = workCapabilities.stream()
                                     .mapToDouble(WorkCapabilities::getProductionRate).sum();
                             double processedSquare = remainProduction * data.getWorkshifts();
@@ -128,18 +142,25 @@ public class CalculationService {
                             }
                             //Calculate fields that are not processed
                             cultureStructure.removeAll(processedFields);
+                            //TODO add vehicle and trailer calculation for output
 
+                        } else {
+                            //TODO add all data to output
                         }
-
-
                     }
-
-                }
-                if () {
-
                 }
             }
 
+            for (ConsolidatedData data : endDateToCheck) {
+                if (data.getEndDate().equals(workDate)) {
+                    for (Map.Entry<Equipment, String> equipmentStringEntry : data.getReservedEquipment()) {
+                        availableEquipment.add(equipmentStringEntry.getKey());
+                        availableVehicles.add(equipmentStringEntry.getValue());
+                    }
+                    data.setWorkStatus(WorkStatus.COMPLETED);
+                }
+            }
+            workDate = workDate.plusDays(1);
         }
     }
 
