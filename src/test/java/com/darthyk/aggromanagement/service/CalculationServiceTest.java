@@ -77,7 +77,7 @@ public class CalculationServiceTest {
                 .capabilities(Arrays.asList(capability8, capability9))
                 .build();
 
-        List<WorkCapabilities> equipment1 = CalculationService.neededEquipment(Arrays.asList(equipment, equipment2, equipment3, equipment4), 60, "worktype1");
+        //List<WorkCapabilities> equipment1 = CalculationService.neededEquipment(Arrays.asList(equipment, equipment2, equipment3, equipment4), 60, "worktype1");
 
         System.out.println();
     }
