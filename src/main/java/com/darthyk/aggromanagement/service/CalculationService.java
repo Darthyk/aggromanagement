@@ -46,6 +46,8 @@ import org.springframework.stereotype.Service;
 @Service
 @AllArgsConstructor
 public class CalculationService {
+    private static final boolean GET_ALL_EQUIPMENT = true;
+    private static final double DONT_NEED_TO_CHECK_PRODUCTION = 0;
     @Autowired
     private PeasRepository peasRepository;
     @Autowired
@@ -69,6 +71,7 @@ public class CalculationService {
         List<ConsolidatedData> consolidatedData = getConsolidatedData();
         List<Equipment> availableEquipment = getAvailableEquipment();
         List<String> availableVehicles = getAvailableVehicles();
+        List<StructureSowing> structureSowings = structureSovingRepository.findAll();
 
         consolidatedData.sort(Comparator.comparing(ConsolidatedData::getStartDate));
         LocalDate earliestStartDate = consolidatedData.get(0).getStartDate();
@@ -91,7 +94,8 @@ public class CalculationService {
                     int workshifts = data.getWorkshifts();
                     double minimalProductionRate = totalSquare/workshifts;
 
-                    List<WorkCapabilities> equipment = neededEquipment(availableEquipment, minimalProductionRate, data.getWorkType());
+                    List<WorkCapabilities> equipment = neededEquipment(availableEquipment, availableVehicles,
+                            minimalProductionRate, data.getWorkType(), !GET_ALL_EQUIPMENT);
                     if (!equipment.isEmpty()) {
                         Map<Equipment, String> selectedEquipment = new HashMap<>();
                         for (WorkCapabilities capabilities : equipment) {
@@ -104,6 +108,29 @@ public class CalculationService {
                         }
                         data.setReservedEquipment(new ArrayList<>(selectedEquipment.entrySet()));
                     } else {
+                        if (availableEquipment.stream().anyMatch(e -> e.getWorkTypes().contains(data.getWorkType()))) {
+                            List<WorkCapabilities> workCapabilities = neededEquipment(availableEquipment,
+                                    availableVehicles, DONT_NEED_TO_CHECK_PRODUCTION, data.getWorkType(),
+                                    GET_ALL_EQUIPMENT);
+                            double remainProduction = workCapabilities.stream()
+                                    .mapToDouble(WorkCapabilities::getProductionRate).sum();
+                            double processedSquare = remainProduction * data.getWorkshifts();
+                            List<StructureSowing> processedFields = new ArrayList<>();
+                            List<StructureSowing> cultureStructure = structureSowings.stream()
+                                    .filter(ss -> ss.getCulture().equals(data.getCultureName()))
+                                    .collect(Collectors.toList());
+                            int processSquare = 0;
+                            while (processSquare <= processedSquare) {
+                                for (StructureSowing structureSowing : cultureStructure) {
+                                    processSquare = processSquare + structureSowing.getSquare();
+                                    processedFields.add(structureSowing);
+                                }
+                            }
+                            //Calculate fields that are not processed
+                            cultureStructure.removeAll(processedFields);
+
+                        }
+
 
                     }
 
@@ -116,12 +143,13 @@ public class CalculationService {
         }
     }
 
-    public static List<WorkCapabilities> neededEquipment(List<Equipment> equipmentList, double neededProduction, String workType) {
+    public static List<WorkCapabilities> neededEquipment(List<Equipment> equipmentList, List<String> vehicleList,
+            double neededProduction, String workType, boolean getAll) {
         List<List<ComparedEquipment>> allowedEquipment = new ArrayList<>();
         for (Equipment equipment : equipmentList) {
             List<ComparedEquipment> list = new ArrayList<>();
             for (WorkCapabilities capability : equipment.getCapabilities()) {
-                if (capability.getWorkType().equals(workType)) {
+                if (capability.getWorkType().equals(workType) && vehicleList.contains(capability.getVehicle())) {
                     list.add(ComparedEquipment.builder()
                             .equipment(equipment)
                             .workCapability(capability)
@@ -131,7 +159,16 @@ public class CalculationService {
             if (!list.isEmpty()) {
                 allowedEquipment.add(list);
             }
+        }
 
+        if (getAll) {
+            List<WorkCapabilities> allAvailableEquipment = new ArrayList<>();
+            for (List<ComparedEquipment> equipments : allowedEquipment) {
+                allAvailableEquipment.add(equipments.stream()
+                        .map(ComparedEquipment::getWorkCapability)
+                        .findFirst().get());
+            }
+            return allAvailableEquipment;
         }
 
         List<ComparedEquipment> selectedMin = new ArrayList<>();
