@@ -5,6 +5,8 @@ import com.darthyk.aggromanagement.model.ConsolidatedData;
 import com.darthyk.aggromanagement.model.Equipment;
 import com.darthyk.aggromanagement.model.WorkCapabilities;
 import com.darthyk.aggromanagement.model.WorkStatus;
+import com.darthyk.aggromanagement.model.dto.Culture;
+import com.darthyk.aggromanagement.model.dto.Report;
 import com.darthyk.aggromanagement.model.entity.Peas;
 import com.darthyk.aggromanagement.model.entity.ProductionRate;
 import com.darthyk.aggromanagement.model.entity.SpringWheat;
@@ -67,7 +69,7 @@ public class CalculationService {
     @Autowired
     private ProductionRateRepository productionRateRepository;
 
-    public void calcultate() {
+    public Report calcultate() {
         List<ConsolidatedData> consolidatedData = getConsolidatedData();
         List<Equipment> availableEquipment = getAvailableEquipment();
         List<String> availableVehicles = getAvailableVehicles();
@@ -79,6 +81,7 @@ public class CalculationService {
         LocalDate latestEndDate = consolidatedData.get(consolidatedData.size()-1).getEndDate();
         consolidatedData.sort(Comparator.comparing(ConsolidatedData::getStartDate));
         long workDays = ChronoUnit.DAYS.between(earliestStartDate, latestEndDate);
+        Report report = Report.builder().culture(new ArrayList<>()).build();
 
         LocalDate workDate = earliestStartDate;
         for (int i = 1; i <= workDays; i++) {
@@ -144,8 +147,35 @@ public class CalculationService {
                             cultureStructure.removeAll(processedFields);
                             //TODO add vehicle and trailer calculation for output
 
+                            List<Culture> culture = report.getCulture();
+                            culture.add(Culture.builder()
+                                    .fields(cultureStructure.stream()
+                                            .map(StructureSowing::getFieldNumber)
+                                            .collect(Collectors.toList()))
+                                    .name(data.getCultureName())
+                                    .trailers(getAvailableEquipment().stream()
+                                            .map(Equipment::getName).collect(Collectors.toList()))
+                                    .workType(data.getWorkType())
+                                    .startDate(data.getStartDate())
+                                    .endDate(data.getEndDate())
+                                    .build());
+                            report.setCulture(culture);
+
                         } else {
                             //TODO add all data to output
+                            List<Culture> culture = report.getCulture();
+                            culture.add(Culture.builder()
+                                    .fields(structureSowings.stream()
+                                            .map(StructureSowing::getFieldNumber)
+                                            .collect(Collectors.toList()))
+                                    .name(data.getCultureName())
+                                    .trailers(getAvailableEquipment().stream()
+                                            .map(Equipment::getName).collect(Collectors.toList()))
+                                    .workType(data.getWorkType())
+                                    .startDate(data.getStartDate())
+                                    .endDate(data.getEndDate())
+                                    .build());
+                            report.setCulture(culture);
                         }
                     }
                 }
@@ -162,6 +192,7 @@ public class CalculationService {
             }
             workDate = workDate.plusDays(1);
         }
+        return report;
     }
 
     public static List<WorkCapabilities> neededEquipment(List<Equipment> equipmentList, List<String> vehicleList,

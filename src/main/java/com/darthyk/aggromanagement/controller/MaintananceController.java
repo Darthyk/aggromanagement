@@ -1,5 +1,6 @@
 package com.darthyk.aggromanagement.controller;
 
+import com.darthyk.aggromanagement.model.dto.Report;
 import com.darthyk.aggromanagement.model.entity.Culture;
 import com.darthyk.aggromanagement.model.entity.Peas;
 import com.darthyk.aggromanagement.repository.CultureRepository;
@@ -43,6 +44,11 @@ public class MaintananceController {
     @GetMapping("/getPeriods")
     public void getPeriods() {
         calculationService.calcultate();
+    }
+
+    @GetMapping("/getReport")
+    public ResponseEntity<Report> getReport() {
+        return ResponseEntity.ok(calculationService.calcultate());
     }
 
 }
